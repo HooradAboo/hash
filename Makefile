@@ -1,8 +1,8 @@
 # source files.
-SRC =  hash.c
+SRC =  hush.c
 OBJ = $(SRC:.c=.o)
 
-OUT = hash.o
+OUT = hush.o
 
 # include directories
 INCLUDES = -I. -I/usr/local/include -Iutility/
