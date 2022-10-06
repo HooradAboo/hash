@@ -40,7 +40,16 @@ void parse (char *line, char** args, int *argc, const char* delim) {
 	while(arg) {
 		args[++pc] = malloc(sizeof(arg)+1);
 		strcpy(args[pc], arg);
-        remove_space(args[pc]);
+
+        // remove_space(args[pc]);
+        // Remove white space
+        if(args[pc][0] == ' ' || args[pc][0] == '\n') {
+            memmove(args[pc], args[pc]+1, strlen(args[pc]));
+        }
+        if(args[pc][strlen(args[pc])-1] == ' ' || args[pc][strlen(args[pc])-1] == '\n') {
+            args[pc][strlen(args[pc])-1] = '\0';
+        }
+
 		arg = strtok(NULL,delim);
 	}
 	args[++pc] = NULL;
@@ -73,16 +82,44 @@ void execute_pipe (char* line) {
     int argc;
     int i;
 
+    // flags
+    int rdir_out = 0;
+    int append = 0;
+    int rdir_in = 0;
+
+    char* output;
+    char* position;
+    char* temp[5];
+    int tmp;
+
     pid_t pid;
 
-    // fd[0] will be the fd(file descriptor) for the read end of pipe 
+    // fd[0] will be the fd (file descriptor) for the read end of pipe 
     // and fd[1] will be the fd for the write end of pipe.
-    int fd[pipec][2];     
+    int fd[pipec][2];  
+    int fdout;   
 
     for (i = 0; i < pipec; i++) {
+        if(strchr(pipes[i], '>')) {
+            rdir_out = 1;
+            // pointer to substring
+            position = strstr(pipes[i], ">");
+            // copy the substrint to output
+            output = malloc(sizeof(position));
+            memcpy(output, position, strlen(position));
+            // remove the substring from the command
+            pipes[i][position - pipes[i]] = '\0';
+            // get the output
+            parse(output, temp, &tmp, ">");
+            strcpy(output, temp[0]);
+            fdout = open(output, O_WRONLY | O_CREAT, 777);
+            if (fdout < 0) {
+                perror(RED "could not open file\n");
+				return;
+            }
+        }
+        
         parse(pipes[i], args, &argc, " \n");
-
-        // if(strchr)
 
         if(i != pipec - 1) {          // Not last pipe
 			if(pipe(fd[i]) < 0) {
@@ -99,7 +136,7 @@ void execute_pipe (char* line) {
 				close(fd[i][0]);
 				close(fd[i][1]);
 
-            } else if (i == pipec - 1) {     // Last pipe - no output
+            } else if (i == pipec - 1) {        // Last pipe - no output
                 dup2(fd[i-1][0], 0);
 				close(fd[i-1][1]);
 				close(fd[i-1][0]);
@@ -128,50 +165,6 @@ void execute_pipe (char* line) {
     close(fd[i-1][1]);
     wait(NULL);
 } 
-
-// void execute_pipe(char*line){//can support up to 10 piped commands
-//     char* buf[BUFF_SIZE];
-//     int nr;
-//     parse (line, buf, &nr, "|");
-
-// 	if(nr>10) return;
-	
-// 	int fd[10][2],i,pc;
-// 	char *argv[100];
-
-// 	for(i=0;i<nr;i++){
-// 		parse(buf[i], argv, &pc, " \n");
-// 		if(i!=nr-1){
-// 			if(pipe(fd[i])<0){
-// 				perror("pipe creating was not successfull\n");
-// 				return;
-// 			}
-// 		}
-        
-// 		if(fork()==0){//child1
-// 			if(i!=nr-1){
-// 				dup2(fd[i][1],1);
-// 				close(fd[i][0]);
-// 				close(fd[i][1]);
-// 			}
-
-// 			if(i!=0){
-// 				dup2(fd[i-1][0],0);
-// 				close(fd[i-1][1]);
-// 				close(fd[i-1][0]);
-// 			}
-// 			execvp(argv[0],argv);
-// 			perror("invalid input ");
-// 			exit(1);//in case exec is not successfull, exit
-// 		}
-// 		//parent
-// 		if(i!=0){//second process
-// 			close(fd[i-1][0]);
-// 			close(fd[i-1][1]);
-// 		}
-// 		wait(NULL);
-// 	}
-// }
 
 
 void execute_redirect (char** cmds, int pipe_num) {
@@ -218,18 +211,13 @@ int main() {
         fgets(line, 500, stdin);
 
         if (strchr(line, '|')) {                 // pipe commands
-            // printf("pipe %s\n", line);
-            // parse(line, args, &argc, "|");
             execute_pipe(line);
-            // execute_pipe(args, argc);
 
         } else if (strchr(line, '>')) {                 // redirect output to file
-            // printf("rediret %s\n", line);
             parse(line, args, &argc, ">");
             execute_redirect(args, argc);
 
         } else {                            // single command
-            // printf("single command %s\n", line);
             parse(line, args, &argc, " \n");
             execute(args);  
         }
