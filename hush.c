@@ -24,33 +24,49 @@
 char* redirect (char* line);
 
 
-char* username () {
+char* username () 
+{
     return getenv("USER");
 }
 
+// char* hostname ()
+// {
+//     char *host;
+//     gethostname(host, TOK_SIZE);
+//     return host;
+// }
 
-void parse (char *line, char** args, int *argc, const char* delim) 
+// char* cwd () 
+// {
+//     return getenv("USER");
+// }
+
+
+void parse (char *line, char **args, int *argc, const char* delim) 
 {
-    char* line_copy = malloc(sizeof(line)*sizeof(char));
-    strcpy(line_copy, line);
-    char* arg;
+    int len;
+    for (len = 0; line[len]; len++);
 
+    char *line_copy = malloc(len+1);
+    memcpy(line_copy, line, len+1);
+    
+    char *arg;
 	arg = strtok(line_copy, delim);
-	int pc = -1;
+	
+    int pc = -1;
 
 	while(arg) {
-		args[++pc] = malloc(sizeof(arg)+1);
-		strcpy(args[pc], arg);
-
         // Remove white spaces in first and last bit
-        if(args[pc][0] == ' ' || args[pc][0] == '\n') {
-            memmove(args[pc], args[pc]+1, strlen(args[pc]));
+        if(arg[0] == ' ' || arg[0] == '\n') {
+            memmove(arg, arg+1, strlen(arg));
         }
-        if(args[pc][strlen(args[pc])-1] == ' ' || args[pc][strlen(args[pc])-1] == '\n') {
-            args[pc][strlen(args[pc])-1] = '\0';
+        if(arg[strlen(arg)-1] == ' ' || arg[strlen(arg)-1] == '\n') {
+            arg[strlen(arg)-1] = '\0';
         }
 
-		arg = strtok(NULL,delim);
+        args[++pc] = malloc(sizeof(arg)+1);
+		strcpy(args[pc], arg);
+		arg = strtok(NULL, delim);
 	}
 	args[++pc] = NULL;
 	*argc = pc;
@@ -61,13 +77,13 @@ void execute (char *line)
 {
     char *args[BUFF_SIZE];
     int argc;
-    char *tmp;    
+    char *cmd;    
 
     pid_t pid = fork();
     
     if (pid == 0) {
-        tmp = redirect(line);
-        parse(tmp, args, &argc, " \n");
+        cmd = redirect(line);
+        parse(cmd, args, &argc, " \n");
         if (execvp(args[0], args) == -1) {
             perror(RED "Invalid input");
         } 
@@ -79,6 +95,55 @@ void execute (char *line)
         wait(NULL);
     }
 } 
+
+
+char* redirect (char* line) 
+{
+    char *args[BUFF_SIZE];
+    int argc;
+    parse(line, args, &argc, "><>>");
+
+    int i;
+    int pc = 0;
+    char  *input, *output;
+    int flags;
+    int tmp;
+
+    int fdin, fdout;
+
+    for (i = 0; i < strlen(line); i++) {
+        if (line[i] == '>') {
+            // pc++;
+            output = strtok(args[++pc], " \n");
+            if (line[i+1] == '>') {
+                flags = O_WRONLY | O_CREAT | O_APPEND;
+            } else {
+                flags = O_WRONLY | O_CREAT | O_TRUNC;
+            }
+            fdout = open(output, flags, S_IRWXU);
+            if (fdout < 0) {
+                perror(RED "could not open output file");
+                exit(1);
+            }
+            dup2(fdout, 1);
+            close(fdout);
+        }
+
+        if (line[i] == '<') {
+            // pc++;
+            input = strtok(args[++pc], " \n");
+            flags = O_RDONLY | O_CREAT;
+            fdin = open(input, flags, S_IRWXU);
+            if (fdin < 0) {
+                perror(RED "could not open input file");
+                exit(1);
+            }
+            dup2(fdin, 0);
+            close(fdin);
+        }
+    }
+    return args[0];
+}
 
 
 void execute_pipe (char* line) 
@@ -165,67 +230,11 @@ void execute_pipe (char* line)
 } 
 
 
-char* redirect (char* line) 
+int main() 
 {
-    char *args[BUFF_SIZE];
-    int argc;
-    parse(line, args, &argc, "><>>");
-
-    int i;
-    int pc = 0;
-    char  *input, *output;
-    int flags;
-    int tmp;
-
-    int fdin, fdout;
-
-    for (i = 0; i < strlen(line); i++) {
-        if (line[i] == '>') {
-            pc++;
-            // parse(args[pc], output, &tmp, " \n");
-            output = strtok(args[pc], " \n");
-            // output = args[pc];
-            if (line[i+1] == '>') {
-                flags = O_WRONLY | O_CREAT | O_APPEND;
-            } else {
-                flags = O_WRONLY | O_CREAT | O_TRUNC;
-            }
-            fdout = open(output, flags, S_IRWXU);
-            if (fdout < 0) {
-                perror(RED "could not open output file");
-                exit(1);
-            }
-            dup2(fdout, 1);
-            close(fdout);
-        }
-
-        if (line[i] == '<') {
-            pc++;
-            // parse(args[pc], input, &tmp, " \n");
-            input = strtok(args[pc], " \n");
-            // input = args[pc];
-            flags = O_RDONLY | O_CREAT;
-            fdin = open(input, flags, S_IRWXU);
-            if (fdin < 0) {
-                perror(RED "could not open input file");
-                exit(1);
-            }
-            dup2(fdin, 0);
-            close(fdin);
-        }
-    }
-    return args[0];
-}
-
-
-int main() {
     char dir[BUFF_SIZE];
     char host[BUFF_SIZE];
-    char line[500];
-    char* args[BUFF_SIZE];
-    int argc = 0;
-    int i;
-    char tmp[100];
+    char line[BUFF_SIZE];
 
     while(1) {
         gethostname(host, sizeof(host));
@@ -235,7 +244,7 @@ int main() {
         // read user input
         fgets(line, 500, stdin);
 
-        if (strchr(line, '|')) {                 // pipe commands
+        if (strchr(line, '|')) {             // pipe commands
             execute_pipe(line);
             
         } else {                            // single command
