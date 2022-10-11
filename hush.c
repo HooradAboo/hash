@@ -5,9 +5,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #define BUFF_SIZE 512
-#define TOK_SIZE 128
+#define TOK_SIZE 256
 #define TOK_DELIM " \t\r\n\a"
 
 #define APPEND 1
@@ -28,19 +29,20 @@ char* username () {
 }
 
 
-void parse (char *line, char** args, int *argc, const char* delim) {
-    // char* line_copy = malloc(sizeof(line));
-    // strcpy(line_copy, line);
+void parse (char *line, char** args, int *argc, const char* delim) 
+{
+    char* line_copy = malloc(sizeof(line)*sizeof(char));
+    strcpy(line_copy, line);
     char* arg;
 
-	arg = strtok(line, delim);
+	arg = strtok(line_copy, delim);
 	int pc = -1;
 
 	while(arg) {
 		args[++pc] = malloc(sizeof(arg)+1);
 		strcpy(args[pc], arg);
 
-        // Remove spaces
+        // Remove white spaces in first and last bit
         if(args[pc][0] == ' ' || args[pc][0] == '\n') {
             memmove(args[pc], args[pc]+1, strlen(args[pc]));
         }
@@ -55,10 +57,8 @@ void parse (char *line, char** args, int *argc, const char* delim) {
 }
 
 
-void execute (char *line) {
-    char* line_copy = malloc(sizeof(line));
-    strcpy(line_copy, line);
-
+void execute (char *line) 
+{
     char *args[BUFF_SIZE];
     int argc;
     char *tmp;    
@@ -67,7 +67,7 @@ void execute (char *line) {
     
     if (pid == 0) {
         tmp = redirect(line);
-        parse(tmp, args, &argc, " ");
+        parse(tmp, args, &argc, " \n");
         if (execvp(args[0], args) == -1) {
             perror(RED "Invalid input");
         } 
@@ -81,7 +81,8 @@ void execute (char *line) {
 } 
 
 
-void execute_pipe (char* line) {
+void execute_pipe (char* line) 
+{
     char* pipes[BUFF_SIZE];
     int pipec;
     parse (line, pipes, &pipec, "|");
@@ -164,31 +165,32 @@ void execute_pipe (char* line) {
 } 
 
 
-char* redirect (char* line) {
-    char* line_copy = malloc(sizeof(line));
-    strcpy(line_copy, line);
-
+char* redirect (char* line) 
+{
     char *args[BUFF_SIZE];
     int argc;
-    parse(line_copy, args, &argc, "><>>");
+    parse(line, args, &argc, "><>>");
 
     int i;
     int pc = 0;
     char  *input, *output;
     int flags;
+    int tmp;
 
     int fdin, fdout;
 
     for (i = 0; i < strlen(line); i++) {
         if (line[i] == '>') {
             pc++;
-            output = args[pc];
+            // parse(args[pc], output, &tmp, " \n");
+            output = strtok(args[pc], " \n");
+            // output = args[pc];
             if (line[i+1] == '>') {
-                flags = O_WRONLY | O_APPEND | O_CREAT;
+                flags = O_WRONLY | O_CREAT | O_APPEND;
             } else {
-                flags = O_WRONLY | O_CREAT;
+                flags = O_WRONLY | O_CREAT | O_TRUNC;
             }
-            fdout = open(output, flags, 0666);
+            fdout = open(output, flags, S_IRWXU);
             if (fdout < 0) {
                 perror(RED "could not open output file");
                 exit(1);
@@ -199,9 +201,11 @@ char* redirect (char* line) {
 
         if (line[i] == '<') {
             pc++;
-            input = args[pc];
+            // parse(args[pc], input, &tmp, " \n");
+            input = strtok(args[pc], " \n");
+            // input = args[pc];
             flags = O_RDONLY | O_CREAT;
-            fdin = open(input, flags, 0666);
+            fdin = open(input, flags, S_IRWXU);
             if (fdin < 0) {
                 perror(RED "could not open input file");
                 exit(1);
@@ -226,20 +230,14 @@ int main() {
     while(1) {
         gethostname(host, sizeof(host));
         getcwd(dir, BUFF_SIZE);
-        printf(GREEN "%s@%s" WHITE ":" BLUE "%s %d$ " WHITE, username(), host, dir, getpid());
+        printf(GREEN "%s@%s" WHITE ":" BLUE "%s$ " WHITE, username(), host, dir);
 
         // read user input
         fgets(line, 500, stdin);
 
         if (strchr(line, '|')) {                 // pipe commands
             execute_pipe(line);
-
-        } else if (strchr(line, '>')) {                 // redirect output to file
-            execute(line);
-
-        } else if (strchr(line, '<')) {                 // redirect output to file
-            execute(line);
-
+            
         } else {                            // single command
             execute(line);  
         }
