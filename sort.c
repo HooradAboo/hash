@@ -18,6 +18,8 @@ int sort(int fd, int mode, int fd_out)
     int i, j = 0, k = 0;
     int row = 0;
 
+
+
     // printf("%s ", args[0]);
     // printf("%s ", args[1]);
     // printf("%s", args[2]);
@@ -66,7 +68,7 @@ int sort(int fd, int mode, int fd_out)
     // printf("kir");
     // printf("%s", args[i]);
     // printf("%d", fd);
-    // read(fd, buf, sizeof(buf));
+    n = read(fd, buf, sizeof(buf));
     // printf("%d", n);
     // printf("%d", fd);
     // fgets(buf, 50, fd);
@@ -122,8 +124,6 @@ int sort(int fd, int mode, int fd_out)
     if (o_flag == 1) {
         write(fd_out, buf, sizeof(buf));
     }
-
-    fclose(fd);
     
     return 1; 
 } 
