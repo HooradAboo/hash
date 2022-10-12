@@ -11,19 +11,13 @@
 #define TOK_SIZE 256
 #define TOK_DELIM " \t\r\n\a"
 
-#define APPEND 1
-#define OUTPUT 2
-#define INPUT 3
-
 #define WHITE   "\x1B[37m"
 #define GREEN   "\x1b[32m"
 #define RED     "\x1b[31m"
 #define BLUE    "\x1b[34m"
 
-// int redirect_mode = 0;      // Append = 1, Output = 2, Input = 3
 
-
-char* redirect (char* line);
+// char* redirect (char* line);
 
 
 char* username () 
@@ -94,6 +88,7 @@ char* redirect (char* line)
             // pc++;
             output = strtok(args[++pc], " \n");
             if (line[i+1] == '>') {
+                i++;
                 flags = O_WRONLY | O_CREAT | O_APPEND;
             } else {
                 flags = O_WRONLY | O_CREAT | O_TRUNC;
@@ -203,7 +198,6 @@ int check_function_type (char *line)
 
     return 0;        
 }
-
 
 
 void execute_pipe (char* line) 
